@@ -122,7 +122,23 @@ exports.handler = async (event) => {
     if (action === "qr_check") {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
-      const j = await weapiPost("https://music.163.com/weapi/login/qrcode/client/login", { key: key, type: 1 });
+      // 手动 fetch 以保留响应头里的 Set-Cookie（登录成功后 cookie 在响应头）
+      const h = Object.assign({}, UA, { "X-Forwarded-For": "116.25.146.177" });
+      const r = await fetch("https://music.163.com/weapi/login/qrcode/client/login", {
+        method: "POST",
+        headers: h,
+        body: weapiParams({ key: key, type: 1 }),
+      });
+      let j;
+      try {
+        j = await r.json();
+      } catch (e) {
+        j = {};
+      }
+      if (j && typeof j === "object" && !j.cookie) {
+        const sc = r.headers.get("set-cookie");
+        if (sc) j.cookie = sc;
+      }
       return J(j);
     }
     if (action === "song_detail") {
