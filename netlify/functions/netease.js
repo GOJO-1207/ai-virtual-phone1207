@@ -43,8 +43,19 @@ exports.handler = async (event) => {
       const kw = q.keywords || q.s || "";
       if (!kw) return J({ code: 400, msg: "缺少 keywords 参数" });
       const limit = q.limit || 20;
-      const j = await fj(`${NET}/search/get/web?s=${encodeURIComponent(kw)}&type=1&limit=${limit}`);
-      return J(j);
+      const enc = encodeURIComponent(kw);
+      const realIP = "116.25.146.177";
+      const urls = [
+        `${NET}/search/get/web?s=${enc}&type=1&limit=${limit}&realIP=${realIP}`,
+        `${NET}/v1/search/get?s=${enc}&type=1&limit=${limit}&realIP=${realIP}`,
+      ];
+      for (const u of urls) {
+        try {
+          const j = await fj(u);
+          if (j && typeof j.result === "object") return J(j);
+        } catch (e) {}
+      }
+      return J({ code: 500, msg: "搜索服务暂不可用" });
     }
     if (action === "song_url") {
       const id = q.id || String(q.ids || "").replace(/[\[\]]/g, "");
