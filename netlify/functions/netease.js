@@ -102,9 +102,22 @@ exports.handler = async (event) => {
     if (action === "qr_create") {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
-      const j = await weapiPost("https://music.163.com/weapi/login/qrcode/client/login", { key: key, qrimg: true });
-      if (j && j.qrimg && !j.data) j.data = { qrimg: j.qrimg };
-      return J(j);
+      // 从网易云拿二维码登录链接（weapi 不直接返回图片）
+      let qrUrl = "";
+      try {
+        const j = await weapiPost("https://music.163.com/weapi/login/qrcode/client/login", { key: key });
+        if (j && j.url) qrUrl = j.url;
+        else if (j && j.data && j.data.url) qrUrl = j.data.url;
+      } catch (e) {}
+      if (!qrUrl) qrUrl = "https://music.163.com/login?codekey=" + key;
+      // 用 qrcode 库生成二维码图片 base64
+      try {
+        const QRCode = require("qrcode");
+        const qrimg = await QRCode.toDataURL(qrUrl, { margin: 1, width: 280 });
+        return J({ code: 200, data: { qrimg: qrimg, url: qrUrl } });
+      } catch (e) {
+        return J({ code: 200, data: { url: qrUrl, qrimg: "" } });
+      }
     }
     if (action === "qr_check") {
       const key = q.key || "";
