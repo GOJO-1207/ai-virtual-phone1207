@@ -95,12 +95,15 @@ exports.handler = async (event) => {
   try {
     if (action === "qr_key") {
       const j = await weapiPost("https://music.163.com/weapi/login/qrcode/unikey", { type: 1 });
+      // 兼容 NeteaseCloudMusicApi：unikey 包在 data 里
+      if (j && j.unikey && !j.data) j.data = { unikey: j.unikey };
       return J(j);
     }
     if (action === "qr_create") {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
       const j = await weapiPost("https://music.163.com/weapi/login/qrcode/client/login", { key: key, type: 1, qrimg: true });
+      if (j && j.qrimg && !j.data) j.data = { qrimg: j.qrimg };
       return J(j);
     }
     if (action === "qr_check") {
