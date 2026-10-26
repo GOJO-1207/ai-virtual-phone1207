@@ -59,6 +59,7 @@ function weapiParams(obj) {
 async function weapiPost(url, obj, cookie) {
   const h = Object.assign({}, UA);
   if (cookie) h.Cookie = cookie;
+  h["X-Real-IP"] = "116.25.146.177";
   h["X-Forwarded-For"] = "116.25.146.177";
   const r = await fetch(url, {
     method: "POST",
@@ -123,7 +124,7 @@ exports.handler = async (event) => {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
       // 手动 fetch 以保留响应头里的 Set-Cookie（登录成功后 cookie 在响应头）
-      const h = Object.assign({}, UA, { "X-Forwarded-For": "116.25.146.177" });
+      const h = Object.assign({}, UA, { "X-Real-IP": "116.25.146.177", "X-Forwarded-For": "116.25.146.177" });
       const r = await fetch("https://music.163.com/weapi/login/qrcode/client/login", {
         method: "POST",
         headers: h,
