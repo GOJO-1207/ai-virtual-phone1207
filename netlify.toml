@@ -101,6 +101,26 @@
 
 # 网易云音乐 API（Netlify Function，兼容 NeteaseCloudMusicApi 常用路径）
 [[redirects]]
+  from = "/login/qr/key"
+  to = "/.netlify/functions/netease?action=qr_key"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/login/qr/create"
+  to = "/.netlify/functions/netease?action=qr_create"
+  status = 200
+  force = true
+  query = { key = ":key" }
+
+[[redirects]]
+  from = "/login/qr/check"
+  to = "/.netlify/functions/netease?action=qr_check"
+  status = 200
+  force = true
+  query = { key = ":key" }
+
+[[redirects]]
   from = "/song/detail"
   to = "/.netlify/functions/netease?action=song_detail"
   status = 200
