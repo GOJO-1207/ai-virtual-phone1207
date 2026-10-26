@@ -37,6 +37,16 @@ exports.handler = async (event) => {
       const ids = String(q.ids || "").replace(/[\[\]]/g, "");
       if (!ids) return J({ code: 400, msg: "缺少 ids 参数" });
       const j = await fj(`${NET}/song/detail/?id=${ids}&ids=[${ids}]`);
+      // 兼容 NeteaseCloudMusicApi 格式：老接口返回 album/artists，转为 al.picUrl
+      if (j && Array.isArray(j.songs)) {
+        j.songs = j.songs.map(function (s) {
+          if (s.al) return s;
+          var al = s.album || {};
+          var pic = (s.artists && s.artists[0] && s.artists[0].picUrl) || al.picUrl || "";
+          var artist = (s.artists && s.artists[0] && s.artists[0].name) || "";
+          return Object.assign({}, s, { al: { id: al.id || s.album ? (s.album.id) : 0, name: al.name || artist, picUrl: pic } });
+        });
+      }
       return J(j);
     }
     if (action === "search") {
