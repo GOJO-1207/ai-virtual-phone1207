@@ -79,3 +79,22 @@
   for = "/default-wallpaper.webp"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+# 小红书读取接口（Netlify Function）
+[[redirects]]
+  from = "/api/xhs-card"
+  to = "/.netlify/functions/xhs?action=card"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/xhs-images"
+  to = "/.netlify/functions/xhs?action=images"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/xhs-search"
+  to = "/.netlify/functions/xhs?action=search"
+  status = 200
+  force = true
