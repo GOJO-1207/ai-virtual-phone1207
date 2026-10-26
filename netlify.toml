@@ -98,3 +98,26 @@
   to = "/.netlify/functions/xhs?action=search"
   status = 200
   force = true
+
+# 网易云音乐 API（Netlify Function，兼容 NeteaseCloudMusicApi 常用路径）
+[[redirects]]
+  from = "/song/detail"
+  to = "/.netlify/functions/netease?action=song_detail"
+  status = 200
+  force = true
+  query = { ids = ":ids" }
+
+[[redirects]]
+  from = "/search"
+  to = "/.netlify/functions/netease?action=search"
+  status = 200
+  force = true
+  query = { keywords = ":keywords", s = ":s", limit = ":limit" }
+
+[[redirects]]
+  from = "/song/url"
+  to = "/.netlify/functions/netease?action=song_url"
+  status = 200
+  force = true
+  query = { id = ":id", ids = ":ids" }
+
