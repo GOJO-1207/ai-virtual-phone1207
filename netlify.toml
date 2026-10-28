@@ -111,47 +111,40 @@
   to = "/.netlify/functions/netease?action=qr_create"
   status = 200
   force = true
-  query = { key = ":key" }
 
 [[redirects]]
   from = "/login/qr/check"
   to = "/.netlify/functions/netease?action=qr_check"
   status = 200
   force = true
-  query = { key = ":key" }
 
 [[redirects]]
   from = "/song/detail"
   to = "/.netlify/functions/netease?action=song_detail"
   status = 200
   force = true
-  query = { ids = ":ids" }
 
 [[redirects]]
   from = "/search"
   to = "/.netlify/functions/netease?action=search"
   status = 200
   force = true
-  query = { keywords = ":keywords" }
 
 [[redirects]]
   from = "/search"
   to = "/.netlify/functions/netease?action=search"
   status = 200
   force = true
-  query = { s = ":s" }
 
 [[redirects]]
   from = "/song/url"
   to = "/.netlify/functions/netease?action=song_url"
   status = 200
   force = true
-  query = { id = ":id" }
 
 [[redirects]]
   from = "/song/url"
   to = "/.netlify/functions/netease?action=song_url"
   status = 200
   force = true
-  query = { ids = ":ids" }
 
