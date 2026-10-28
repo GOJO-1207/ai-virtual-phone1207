@@ -4,6 +4,9 @@
 // 数据源：网易云官方接口（song/search 走老接口；登录走 weapi 加密接口）
 const crypto = require("crypto");
 
+// 网易云登录态（从 Netlify 环境变量注入，小手机免扫码听 VIP）
+const COOKIE = process.env.NET_EASE_COOKIE || "";
+
 const NET = "https://music.163.com/api";
 
 const HDR = {
@@ -58,7 +61,7 @@ function weapiParams(obj) {
 
 async function weapiPost(url, obj, cookie) {
   const h = Object.assign({}, UA);
-  if (cookie) h.Cookie = cookie;
+  if (cookie || COOKIE) h.Cookie = cookie || COOKIE;
   h["X-Real-IP"] = "116.25.146.177";
   h["X-Forwarded-For"] = "116.25.146.177";
   const r = await fetch(url, {
@@ -176,9 +179,17 @@ exports.handler = async (event) => {
       return J({ code: 500, msg: "搜索服务暂不可用" });
     }
     if (action === "song_url") {
-      const id = q.id || String(q.ids || "").replace(/[\[\]]/g, "");
+      const id = String(q.id || "").replace(/[\[\]]/g, "") || String(q.ids || "").replace(/[\[\]]/g, "");
       if (!id) return J({ code: 400, msg: "缺少 id 参数" });
-      return J({ code: 200, data: [{ id: Number(id), url: null, br: 128000 }] });
+      try {
+        const j = await weapiPost("https://music.163.com/weapi/song/enhance/player/url", { ids: "[" + id + "]", br: 320000, csrf_token: "" }, COOKIE);
+        if (j && j.code === 200 && Array.isArray(j.data) && j.data[0]) {
+          return J(j);
+        }
+        return J({ code: 200, data: [{ id: Number(id), url: null, br: 320000, msg: "需登录或非VIP" }] });
+      } catch (e) {
+        return J({ code: 200, data: [{ id: Number(id), url: null, br: 320000, msg: "获取失败" }] });
+      }
     }
     return J({ code: 404, msg: "未知接口" });
   } catch (e) {
