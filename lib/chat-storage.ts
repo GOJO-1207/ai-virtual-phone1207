@@ -971,6 +971,31 @@ export function hydrateChatStorage(): Promise<void> {
             let normalizedContacts = normalizeChatContacts(data.contacts);
             const normalizedSessions = normalizeChatSessions(data.sessions);
             const redirectedMessages = redirectMessagesToPreferredSessions(normalizedSessions.redirects);
+            // 修复：部分会话的 order 序列错乱（11-02 新消息 order 小于 26 号旧消息），
+            // 导致按 order 排序时最新消息排不到最后、会话时间被算回旧值。
+            // 启动时按 createdAt 对每个会话的消息 order 重排并写回。
+            try {
+                for (const session of normalizedSessions.items) {
+                    const orderedMsgs = _loadAllMessages()
+                        .filter(m => m.sessionId === session.id)
+                        .sort((a, b) => {
+                            const timeDiff = getMessageTimeValue(a) - getMessageTimeValue(b);
+                            if (timeDiff !== 0) return timeDiff;
+                            return a.id.localeCompare(b.id);
+                        });
+                    const changed = new Map<string, ChatMessage>();
+                    orderedMsgs.forEach((msg, index) => {
+                        if (msg.order === index) return;
+                        changed.set(msg.id, { ...msg, order: index });
+                    });
+                    if (changed.size > 0) {
+                        _messagesCache = _messagesCache.map(msg => changed.get(msg.id) || msg);
+                        dbPutMessages([...changed.values()]);
+                    }
+                }
+            } catch (err) {
+                console.warn("[ChatStorage] message order reindex failed:", err);
+            }
             const refreshedSessions = refreshSessionPreviewMetadata(normalizedSessions.items);
             normalizedContacts = restoreContactsForPrivateSessions(normalizedContacts.items, normalizedSessions.items);
             _contactsCache = normalizedContacts.items;
