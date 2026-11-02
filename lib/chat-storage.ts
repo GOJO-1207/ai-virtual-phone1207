@@ -958,20 +958,32 @@ export function hydrateChatStorage(): Promise<void> {
     if (_hydrated || typeof window === "undefined") return Promise.resolve();
     if (_hydratePromise) return _hydratePromise;
     _hydratePromise = initChatDb().then(data => {
-        const normalizedToolHistory = normalizeLegacyTextToolHistory(data.messages);
-        _messagesCache = normalizedToolHistory.items;
-        if (normalizedToolHistory.changedMessages.length > 0) {
-            dbPutMessages(normalizedToolHistory.changedMessages);
+        try {
+            const normalizedToolHistory = normalizeLegacyTextToolHistory(data.messages);
+            _messagesCache = normalizedToolHistory.items;
+            if (normalizedToolHistory.changedMessages.length > 0) {
+                dbPutMessages(normalizedToolHistory.changedMessages);
+            }
+        } catch (err) {
+            console.warn("[ChatStorage] message hydration failed, sessions refresh will still run:", err);
         }
-        let normalizedContacts = normalizeChatContacts(data.contacts);
-        const normalizedSessions = normalizeChatSessions(data.sessions);
-        const redirectedMessages = redirectMessagesToPreferredSessions(normalizedSessions.redirects);
-        const refreshedSessions = refreshSessionPreviewMetadata(normalizedSessions.items);
-        normalizedContacts = restoreContactsForPrivateSessions(normalizedContacts.items, normalizedSessions.items);
-        _contactsCache = normalizedContacts.items;
-        _sessionsCache = refreshedSessions.items;
-        if (normalizedContacts.changed) dbReplaceContacts(normalizedContacts.items);
-        if (normalizedSessions.changed || redirectedMessages > 0 || refreshedSessions.changed) dbReplaceSessions(refreshedSessions.items);
+        try {
+            let normalizedContacts = normalizeChatContacts(data.contacts);
+            const normalizedSessions = normalizeChatSessions(data.sessions);
+            const redirectedMessages = redirectMessagesToPreferredSessions(normalizedSessions.redirects);
+            const refreshedSessions = refreshSessionPreviewMetadata(normalizedSessions.items);
+            normalizedContacts = restoreContactsForPrivateSessions(normalizedContacts.items, normalizedSessions.items);
+            _contactsCache = normalizedContacts.items;
+            _sessionsCache = refreshedSessions.items;
+            if (normalizedContacts.changed) dbReplaceContacts(normalizedContacts.items);
+            // 只要会话非空就覆盖写回重算结果，确保 IndexedDB 里的会话元数据与消息记录一致
+            // （修复：旧缓存写回后，会话 updatedAt/preview 停留在旧值的问题）
+            if (refreshedSessions.items.length > 0) {
+                dbPutSessions(refreshedSessions.items);
+            }
+        } catch (err) {
+            console.warn("[ChatStorage] session hydration failed:", err);
+        }
         _hydrated = true;
     }).catch(err => {
         console.warn("[ChatStorage] hydration failed, will retry on next call:", err);
@@ -1037,9 +1049,9 @@ export function loadChatSessions(): ChatSession[] {
     const normalized = normalizeChatSessions(_sessionsCache);
     const redirectedMessages = redirectMessagesToPreferredSessions(normalized.redirects);
     const refreshed = refreshSessionPreviewMetadata(normalized.items);
-    if (normalized.changed || redirectedMessages > 0 || refreshed.changed) {
+    if (refreshed.items.length > 0) {
         _sessionsCache = refreshed.items;
-        if (_hydrated && typeof window !== "undefined") dbReplaceSessions(refreshed.items);
+        if (_hydrated && typeof window !== "undefined") dbPutSessions(refreshed.items);
     }
     return _sessionsCache;
 }
