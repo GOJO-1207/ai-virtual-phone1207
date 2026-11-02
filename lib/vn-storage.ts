@@ -67,9 +67,16 @@ function normalizeVnSessions(sessions: VnSession[]): { items: VnSession[]; chang
       changed = true;
       continue;
     }
-    const item = id === session.id && characterId === session.characterId
+    let item = id === session.id && characterId === session.characterId
       ? session
       : { ...session, id, characterId };
+    // 防御：chapters 损坏（非数组，如灾情期写坏或导入合并产生的坏数据）会导致
+    // 发送消息组装短期记忆时 `for (const chapter of session.chapters)` 抛
+    // "n.chapters is not iterable"。这里在数据加载/归一化时自动修复为空章节。
+    if (!Array.isArray(item.chapters)) {
+      item = { ...item, chapters: [] };
+      changed = true;
+    }
     const existingIndex = indexByCharacter.get(characterId);
     if (existingIndex === undefined) {
       indexByCharacter.set(characterId, normalized.length);
@@ -367,6 +374,7 @@ export function loadVnProjectionEntries(
 ): VnProjectionEntry[] {
   const session = _sessionsCache.find((s) => s.characterId === characterId);
   if (!session) return [];
+  if (!Array.isArray(session.chapters)) return [];
 
   const projections: VnProjectionEntry[] = [];
 
