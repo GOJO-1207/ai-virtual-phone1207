@@ -93,6 +93,9 @@ exports.handler = async (event) => {
     else if (path.indexOf("login/qr/check") !== -1) action = "qr_check";
     else if (path.indexOf("song/detail") !== -1) action = "song_detail";
     else if (path.indexOf("song/url") !== -1) action = "song_url";
+    else if (path.indexOf("check/music") !== -1) action = "check_music";
+    else if (path.indexOf("login/status") !== -1) action = "login_status";
+    else if (path.indexOf("/lyric") !== -1) action = "lyric";
     else if (path.indexOf("search") !== -1) action = "search";
   }
 
@@ -182,13 +185,48 @@ exports.handler = async (event) => {
       const id = String(q.id || "").replace(/[\[\]]/g, "") || String(q.ids || "").replace(/[\[\]]/g, "");
       if (!id) return J({ code: 400, msg: "缺少 id 参数" });
       try {
-        const j = await weapiPost("https://music.163.com/weapi/song/enhance/player/url", { ids: "[" + id + "]", br: 320000, csrf_token: "" }, COOKIE);
+        // 优先用登录后 App 带来的 cookie（query 参数），其次环境变量里的旧 cookie
+        const j = await weapiPost("https://music.163.com/weapi/song/enhance/player/url", { ids: "[" + id + "]", br: 320000, csrf_token: "" }, q.cookie || COOKIE);
         if (j && j.code === 200 && Array.isArray(j.data) && j.data[0]) {
           return J(j);
         }
         return J({ code: 200, data: [{ id: Number(id), url: null, br: 320000, msg: "需登录或非VIP" }] });
       } catch (e) {
         return J({ code: 200, data: [{ id: Number(id), url: null, br: 320000, msg: "获取失败" }] });
+      }
+    }
+    if (action === "check_music") {
+      const id = String(q.id || "").replace(/[\[\]]/g, "");
+      if (!id) return J({ code: 400, msg: "缺少 id 参数" });
+      try {
+        const j = await weapiPost("https://music.163.com/weapi/music/check/web", { ids: "[" + id + "]", csrf_token: "" }, q.cookie || COOKIE);
+        const d = (Array.isArray(j.data) && j.data[0]) ? j.data[0] : {};
+        return J({ code: 200, success: d.success === undefined ? true : d.success, message: d.message || "" });
+      } catch (e) {
+        return J({ code: 200, success: true, message: "" });
+      }
+    }
+    if (action === "login_status") {
+      try {
+        const h = Object.assign({}, UA);
+        const ck = q.cookie || COOKIE;
+        if (ck) h.Cookie = ck;
+        const r = await fetch("https://music.163.com/api/w/nuser/account/get", { headers: h });
+        return J(await r.json());
+      } catch (e) {
+        return J({ code: 500, msg: "登录状态获取失败" });
+      }
+    }
+    if (action === "lyric") {
+      const id = String(q.id || "").replace(/[\[\]]/g, "");
+      if (!id) return J({ code: 400, msg: "缺少 id 参数" });
+      try {
+        const u = "https://music.163.com/api/song/lyric?id=" + encodeURIComponent(id) + "&lv=-1&kv=-1&tv=-1";
+        const j = await fj(u);
+        if (j && typeof j.lrc === "object") return J(j);
+        return J({ code: 200, lrc: { lyric: "" } });
+      } catch (e) {
+        return J({ code: 500, msg: "歌词获取失败" });
       }
     }
     return J({ code: 404, msg: "未知接口" });
