@@ -9,6 +9,16 @@ const COOKIE = process.env.NET_EASE_COOKIE || "";
 
 const NET = "https://music.163.com/api";
 
+// 扫码登录会话：unikey -> 网易云首次分配的 cookie(NMTID 等)
+// 轮询 check 时必须带同一会话 cookie，否则网易云判定会话不连续并返回 8821 风控。
+const QR_SESSIONS = globalThis.__neteaseQrSessions || (globalThis.__neteaseQrSessions = new Map());
+function grabSetCookie(r) {
+  try {
+    const list = r.headers.getSetCookie ? r.headers.getSetCookie() : [r.headers.get("set-cookie")];
+    return (list || []).filter(Boolean).join("; ");
+  } catch (e) { return ""; }
+}
+
 const HDR = {
   "Content-Type": "application/json; charset=utf-8",
   "Access-Control-Allow-Origin": "*",
@@ -101,7 +111,23 @@ exports.handler = async (event) => {
 
   try {
     if (action === "qr_key") {
-      const j = await weapiPost("https://music.163.com/weapi/login/qrcode/unikey", { type: 1 });
+      // 手动 fetch：需要捕获 Set-Cookie，建立后续轮询要用的会话
+      const h = Object.assign({}, UA, { "X-Real-IP": "116.25.146.177", "X-Forwarded-For": "116.25.146.177" });
+      const r = await fetch("https://music.163.com/weapi/login/qrcode/unikey", {
+        method: "POST",
+        headers: h,
+        body: weapiParams({ type: 1 }),
+      });
+      const j = await r.json();
+      const sc = grabSetCookie(r);
+      if (j && j.unikey && sc) {
+        QR_SESSIONS.set(j.unikey, sc);
+        // 控制内存：超过 200 个会话时丢最早的
+        if (QR_SESSIONS.size > 200) {
+          const first = QR_SESSIONS.keys().next().value;
+          QR_SESSIONS.delete(first);
+        }
+      }
       // 兼容 NeteaseCloudMusicApi：unikey 包在 data 里
       if (j && j.unikey && !j.data) j.data = { unikey: j.unikey };
       return J(j);
@@ -109,10 +135,20 @@ exports.handler = async (event) => {
     if (action === "qr_create") {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
-      // 从网易云拿二维码登录链接（weapi 不直接返回图片）
+      // 从网易云拿二维码登录链接（weapi 不直接返回图片）；沿用该 key 的会话 cookie
       let qrUrl = "";
       try {
-        const j = await weapiPost("https://music.163.com/weapi/login/qrcode/client/login", { key: key });
+        const h = Object.assign({}, UA, { "X-Real-IP": "116.25.146.177", "X-Forwarded-For": "116.25.146.177" });
+        const sess = QR_SESSIONS.get(key);
+        if (sess) h.Cookie = sess;
+        const r = await fetch("https://music.163.com/weapi/login/qrcode/client/login", {
+          method: "POST",
+          headers: h,
+          body: weapiParams({ key: key }),
+        });
+        const j = await r.json();
+        const sc = grabSetCookie(r);
+        if (sc) QR_SESSIONS.set(key, [sess, sc].filter(Boolean).join("; "));
         if (j && j.url) qrUrl = j.url;
         else if (j && j.data && j.data.url) qrUrl = j.data.url;
       } catch (e) {}
@@ -129,8 +165,10 @@ exports.handler = async (event) => {
     if (action === "qr_check") {
       const key = q.key || "";
       if (!key) return J({ code: 400, msg: "缺少 key 参数" });
-      // 手动 fetch 以保留响应头里的 Set-Cookie（登录成功后 cookie 在响应头）
+      // 关键：带上该 key 首次分配时的会话 cookie，否则网易云判定会话不连续并返回 8821
       const h = Object.assign({}, UA, { "X-Real-IP": "116.25.146.177", "X-Forwarded-For": "116.25.146.177" });
+      const sess = QR_SESSIONS.get(key);
+      if (sess) h.Cookie = sess;
       const r = await fetch("https://music.163.com/weapi/login/qrcode/client/login", {
         method: "POST",
         headers: h,
@@ -142,9 +180,19 @@ exports.handler = async (event) => {
       } catch (e) {
         j = {};
       }
+      const sc = grabSetCookie(r);
+      if (sc) QR_SESSIONS.set(key, [sess, sc].filter(Boolean).join("; "));
       if (j && typeof j === "object" && !j.cookie) {
-        const sc = r.headers.get("set-cookie");
-        if (sc) j.cookie = sc;
+        const raw = sc || sess || "";
+        if (Number(j.code) === 803) {
+          // 只把真正的登录凭证交给 App，避免保存点名 cookie/属性串
+          const parts = String(raw).split(/; */).filter(function (x) {
+            return /^(MUSIC_U|__csrf)=/.test(x);
+          });
+          j.cookie = parts.length ? parts.join("; ") : raw;
+        } else if (raw) {
+          j.cookie = raw;
+        }
       }
       return J(j);
     }
