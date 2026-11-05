@@ -15,7 +15,7 @@ const SKIP_HEADERS = new Set([
 const DIARY_DIRS = ["/日记", "/diary", "/日記"];
 const MAX_PER_DAY = 6;
 const BEIJING_OFFSET_MS = 8 * 3600 * 1000;
-const DIARY_COUNT_CMD = 'for f in /日记/*; do [ -f "$f" ] && stat -c %Y "$f"; done 2>/dev/null';
+const DIARY_COUNT_CMD = 'find /日记 -maxdepth 1 -type f -printf "%T@\\n" 2>/dev/null';
 
 function normPath(p) {
   let n = String(p || "").replace(/\\/g, "/").replace(/\/{2,}/g, "/");
@@ -67,12 +67,14 @@ async function countTodayDiary(workspace, headers) {
     const r = await workerCall({ action: "exec", workspace, command: DIARY_COUNT_CMD }, headers);
     const out = r.data && typeof r.data.stdout === "string" ? r.data.stdout : null;
     const err = r.data && typeof r.data.stderr === "string" ? r.data.stderr : "";
-    if (r.data && r.data.ok === true && out !== null && (out.trim() !== "" || err.trim() === "")) {
+    if (r.data && r.data.ok === true && out !== null) {
       const nums = out.split(/\s+/).filter(Boolean).map(Number).filter(n => Number.isFinite(n));
-      if (!nums.length) return { count: 0, source: "mtime", date: ymd };
-      const secs = nums.map(n => (n > 1e12 ? Math.floor(n / 1000) : n));
-      const count = secs.filter(s => s * 1000 >= start && s * 1000 < end).length;
-      return { count, source: "mtime", date: ymd };
+      if (nums.length) {
+        const today = nums.filter(t => t >= start / 1000 && t < end / 1000).length;
+        return { count: today, source: "mtime", date: ymd };
+      }
+      // 目录为空（无输出、无报错）→ 0 篇；有输出但解析不出数字 → 认为命令不可用，回退
+      if (out.trim() === "" && err.trim() === "") return { count: 0, source: "mtime", date: ymd };
     }
   } catch { /* 落到下面的文件名统计 */ }
 
