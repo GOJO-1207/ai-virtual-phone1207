@@ -86,7 +86,7 @@ const WEIXIN_CLOUD_HISTORY_HEAD_TOKEN = "__AI_PHONE_WX_SLOT_HEAD__";
 const WEIXIN_CLOUD_MAX_DEPTH_SLOTS = 48;
 const WEIXIN_CLOUD_CHAT_APP_TAGS = ["chat", "text"];
 const DEFAULT_MESSAGE_LIMIT = 80;
-const REALTIME_PULL_INTERVAL_MS = 8000;
+const REALTIME_PULL_INTERVAL_MS = 20000;
 const LOCAL_UPLOAD_FLUSH_DELAY_MS = 500;
 const RUNTIME_CONFIG_SYNC_DEBOUNCE_MS = 3000;
 const RUNTIME_AUTO_SYNC_THROTTLE_MS = 60 * 60 * 1000;
@@ -1317,7 +1317,7 @@ export async function pullWeixinCloudMessagesFromCloud(
     const objects: Awaited<ReturnType<typeof listObjects>> = [];
     try {
       const scanFull = options?.scan !== "latest";
-      for (let offset = 0; offset < 10_000; offset += limit) {
+      for (let offset = 0; offset < (scanFull ? 800 : limit); offset += limit) {
         const page = await listObjects(cloudConfig, prefix, limit, { column: "created_at", order: "desc" }, offset);
         objects.push(...page);
         if (page.length < limit) break;
@@ -1407,7 +1407,7 @@ export function startWeixinCloudRealtimeSync(): () => void {
 
   // 全量翻页扫描的节流：常规轮询只看最新页（整页全新会自动续翻），
   // 启动、回前台、以及每 10 分钟做一次全量，兜历史坑
-  const FULL_SCAN_INTERVAL_MS = 10 * 60 * 1000;
+  const FULL_SCAN_INTERVAL_MS = 60 * 60 * 1000;
   let lastFullScanAt = 0;
 
   const pullNow = async (force = false, deep = false) => {
@@ -1420,7 +1420,7 @@ export function startWeixinCloudRealtimeSync(): () => void {
     // 保存 promise 而不只是布尔：运行包同步要能等这一轮拉取落库（见 syncRuntimesNow）。
     const running = (async () => {
       try {
-        const result = await pullWeixinCloudMessagesFromCloud({ limitPerBot: 200, scan });
+        const result = await pullWeixinCloudMessagesFromCloud({ limitPerBot: 80, scan });
         if (scan === "full") lastFullScanAt = Date.now();
         if (result.added > 0) dispatchPulledSessions(result.sessionIds);
         if (result.errors.length > 0) {
