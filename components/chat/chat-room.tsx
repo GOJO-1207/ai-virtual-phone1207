@@ -785,6 +785,8 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                 onChange={e => {
                     setInputText(e.target.value);
                     setSuggestClosed(false);
+                    e.target.style.height = "auto";
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
                 }}
                 onFocus={(e) => {
                     if (panelOpen) {
