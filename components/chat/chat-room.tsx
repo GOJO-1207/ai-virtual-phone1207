@@ -785,7 +785,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                 value={inputText}
                 onChange={e => {
                     setInputText(e.target.value);
-                    setSuggestClosed(prev => (prev ? false : prev));
+                    if (suggestClosed) setSuggestClosed(false);
                     const ta = e.target;
                     requestAnimationFrame(() => {
                         ta.style.height = "auto";
