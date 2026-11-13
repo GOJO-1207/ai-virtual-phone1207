@@ -661,7 +661,11 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onSendSticker,
 }, ref) {
     const [inputText, setInputText] = useState("");
+<<<<<<< HEAD
+        if (typeof window !== "undefined") (window as any).__bar = ((window as any).__bar || 0) + 1;
+=======
 	    if (typeof window !== "undefined") (window as any).__bar = ((window as any).__bar || 0) + 1;
+>>>>>>> ca46212c1043c3eddbf77c8534a850572e9a6d2f
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     // 表情包搜索联想：ESC/失焦置 true 隐藏，输入变化重新开启
     const [suggestClosed, setSuggestClosed] = useState(false);
@@ -785,9 +789,12 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                 value={inputText}
                 onChange={e => {
                     setInputText(e.target.value);
-                    setSuggestClosed(false);
-                    e.target.style.height = "auto";
-                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + "px";
+                    setSuggestClosed(prev => (prev ? false : prev));
+                    const ta = e.target;
+                    requestAnimationFrame(() => {
+                        ta.style.height = "auto";
+                        ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+                    });
                 }}
                 onFocus={(e) => {
                     if (panelOpen) {
