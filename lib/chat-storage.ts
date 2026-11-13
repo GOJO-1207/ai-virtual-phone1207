@@ -473,10 +473,23 @@ export function compareChatMessages(a: ChatMessage, b: ChatMessage): number {
     return a.id.localeCompare(b.id);
 }
 
+let __sortedSessionCache: Map<string, ChatMessage[]> = new Map();
+let __sortedSessionCacheAt = 0;
+
 function getSortedSessionMessages(sessionId: string): ChatMessage[] {
-    return _loadAllMessages()
-        .filter(m => m.sessionId === sessionId)
-        .sort(compareChatMessages);
+    const now = Date.now();
+    if (now - __sortedSessionCacheAt > 30) {
+        __sortedSessionCacheAt = now;
+        __sortedSessionCache = new Map();
+    }
+    let hit = __sortedSessionCache.get(sessionId);
+    if (!hit) {
+        hit = _loadAllMessages()
+            .filter(m => m.sessionId === sessionId)
+            .sort(compareChatMessages);
+        __sortedSessionCache.set(sessionId, hit);
+    }
+    return hit.slice();
 }
 
 function getNextMessageOrder(sessionId: string): number {
