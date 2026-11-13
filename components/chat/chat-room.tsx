@@ -661,7 +661,9 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onSendSticker,
 }, ref) {
     const [inputText, setInputText] = useState("");
-        if (typeof window !== "undefined") (window as any).__bar = ((window as any).__bar || 0) + 1;
+    if (typeof window !== "undefined") (window as any).__bar = ((window as any).__bar || 0) + 1;
+    const inputValueRef = useRef("");
+    const inputSyncTimerRef = useRef<number | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     // 表情包搜索联想：ESC/失焦置 true 隐藏，输入变化重新开启
     const [suggestClosed, setSuggestClosed] = useState(false);
@@ -679,34 +681,42 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
         if (textareaRef.current) textareaRef.current.style.height = "auto";
     };
 
-    const appendText = useCallback((text: string, options?: { focus?: boolean }) => {
-        setInputText(prev => prev + text);
+        const appendText = useCallback((text: string, options?: { focus?: boolean }) => {
+        const nextText = (inputValueRef.current || "") + text;
+        inputValueRef.current = nextText;
+        const ta = textareaRef.current;
+        if (ta) ta.value = nextText;
+        setInputText(nextText);
         requestAnimationFrame(() => {
-            const ta = textareaRef.current;
-            if (!ta) return;
-            ta.style.height = "auto";
-            ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
-            if (options?.focus !== false) ta.focus();
+            const el = textareaRef.current;
+            if (!el) return;
+            el.style.height = "auto";
+            el.style.height = Math.min(el.scrollHeight, 120) + "px";
+            if (options?.focus !== false) el.focus();
         });
     }, []);
 
     useImperativeHandle(ref, () => ({
         appendText,
         clear: () => {
+            inputValueRef.current = "";
+            if (textareaRef.current) textareaRef.current.value = "";
             setInputText("");
             resetTextareaHeight();
         },
     }), [appendText]);
 
-    const handleSubmit = () => {
+        const handleSubmit = () => {
         if (inputLocked) return;
         if (isGenerating) {
             onStopGeneration();
             return;
         }
-        const trimmed = inputText.trim();
+        const trimmed = (inputValueRef.current || "").trim();
         if (!trimmed) return;
         if (!onSendText(trimmed)) return;
+        inputValueRef.current = "";
+        if (textareaRef.current) textareaRef.current.value = "";
         setInputText("");
         resetTextareaHeight();
         onClosePanels();
@@ -773,25 +783,33 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                     characterIds={suggestCharacterIds}
                     onSend={(name, url) => {
                         onSendSticker(name, url);
+                        inputValueRef.current = "";
+                        if (textareaRef.current) textareaRef.current.value = "";
                         setInputText("");
                         resetTextareaHeight();
                     }}
+
                     onClose={() => setSuggestClosed(true)}
                 />
             )}
             <textarea
                 ref={textareaRef}
                 rows={1}
-                value={inputText}
+                defaultValue=""
                 onChange={e => {
-                    setInputText(e.target.value);
-                    if (suggestClosed) setSuggestClosed(false);
-                    const ta = e.target;
+                    const el = e.target;
+                    inputValueRef.current = el.value;
+                    if (inputSyncTimerRef.current !== null) window.clearTimeout(inputSyncTimerRef.current);
+                    inputSyncTimerRef.current = window.setTimeout(() => {
+                        setInputText(inputValueRef.current);
+                        if (suggestClosed) setSuggestClosed(false);
+                    }, 200);
                     requestAnimationFrame(() => {
-                        ta.style.height = "auto";
-                        ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+                        el.style.height = "auto";
+                        el.style.height = Math.min(el.scrollHeight, 120) + "px";
                     });
                 }}
+
                 onFocus={(e) => {
                     if (panelOpen) {
                         e.target.blur();
@@ -863,14 +881,17 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                         className="ui-bare-btn text-[var(--c-text)]"
                         title={!inputLocked && inputText.trim() ? "发送输入框内容并触发回复" : "触发 AI 主动回复"}
                         onClick={() => {
-                            const trimmed = inputText.trim();
+                            const trimmed = (inputValueRef.current || "").trim();
                             // 输入框已有文字：发送输入框内容并立即触发模型回复（一次按键完成），
                             // 避免「打完字却忘记发送」；没文字时才只触发 AI 主动回复
                             if (!inputLocked && trimmed) {
                                 if (!onSendText(trimmed, { autoReply: true })) return;
+                                inputValueRef.current = "";
+                                if (textareaRef.current) textareaRef.current.value = "";
                                 setInputText("");
                                 resetTextareaHeight();
                             } else {
+
                                 onTriggerAIResponse();
                             }
                             onClosePanels();
