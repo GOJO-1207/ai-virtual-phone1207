@@ -1078,6 +1078,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
 }));
 
 export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
+        if (typeof window !== "undefined") (window as any).__room = ((window as any).__room || 0) + 1;
     const [liveCSS, setLiveCSS] = useState(session.customCSS || "");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [transientMessages, setTransientMessages] = useState<ChatMessage[]>([]);
