@@ -1633,6 +1633,7 @@ export function clearChatSessionMessages(sessionId: string) {
 function dispatchDeletedMessages(messages: ChatMessage[]): void {
     if (typeof window === "undefined" || messages.length === 0) return;
     window.dispatchEvent(new CustomEvent(CHAT_MESSAGES_DELETED_EVENT, { detail: { messages } }));
+    window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { messages } }));
     for (const message of messages) {
         emitChatPluginEvent("message.deleted", { id: message.id, sessionId: message.sessionId });
     }
